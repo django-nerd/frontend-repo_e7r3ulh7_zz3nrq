@@ -96,16 +96,14 @@ function distributeBlocks(total) {
 }
 
 function computeBlockCapacity(blockHeightPx, fontSizePx, lineHeight, charSpacingPx) {
-  // Estimate characters = (lines per block) * (avg chars per line)
   const linePx = fontSizePx * lineHeight
   const lines = Math.max(1, Math.floor(blockHeightPx / linePx))
-  // Assume average character width ~ 0.6 * fontSize + letter-spacing effect
   const avgCharWidth = Math.max(1, 0.6 * fontSizePx + charSpacingPx / 10)
-  const charsPerLine = Math.max(5, Math.floor((240 /* column inner px estimate */) / avgCharWidth))
+  const charsPerLine = Math.max(5, Math.floor((240) / avgCharWidth))
   return Math.max(10, lines * charsPerLine)
 }
 
-const BlockEditor = ({ id, value, onChange, capacity, styles, dark }) => {
+const BlockEditor = ({ id, value, onChange, capacity, styles, dark, onExpand, onClear }) => {
   const [remaining, setRemaining] = useState(capacity)
   const quillRef = useRef(null)
 
@@ -124,13 +122,13 @@ const BlockEditor = ({ id, value, onChange, capacity, styles, dark }) => {
 
   const handleChange = (html) => {
     const plainLen = stripHtml(html).length
-    if (plainLen > capacity) {
-      // Ignore extra input beyond capacity without breaking formatting
-      return
-    }
+    if (plainLen > capacity) return
     setRemaining(capacity - plainLen)
     onChange(html)
   }
+
+  const used = Math.min(capacity, capacity - remaining)
+  const pct = Math.max(0, Math.min(100, Math.round((used / capacity) * 100)))
 
   return (
     <div className={`relative rounded-md overflow-hidden border ${dark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`} style={{ ...styles }}>
@@ -142,8 +140,15 @@ const BlockEditor = ({ id, value, onChange, capacity, styles, dark }) => {
         theme="snow"
         style={{ height: '100%' }}
       />
-      <div className={`absolute right-2 bottom-2 text-[10px] px-2 py-1 rounded-md ${dark ? 'bg-zinc-800 text-zinc-200' : 'bg-white/90 text-zinc-700'} border ${dark ? 'border-zinc-700' : 'border-zinc-200'}`}>
-        {remaining} left
+      <div className={`absolute right-2 bottom-2 left-2 flex items-center gap-2`}>
+        <div className={`text-[10px] px-2 py-1 rounded-md ${dark ? 'bg-zinc-800 text-zinc-200 border border-zinc-700' : 'bg-white/90 text-zinc-700 border border-zinc-200'}`}>
+          {remaining} left
+        </div>
+        <button onClick={() => onExpand(id, value, capacity)} className={`${dark ? 'bg-zinc-800 text-zinc-100 border-zinc-700' : 'bg-white text-zinc-800 border-zinc-200'} text-[10px] px-2 py-1 border rounded-md active:scale-95`} aria-label="Expand editor">Expand</button>
+        <button onClick={() => onClear(id)} className={`${dark ? 'bg-zinc-800 text-red-300 border-zinc-700' : 'bg-white text-red-600 border-zinc-200'} text-[10px] px-2 py-1 border rounded-md active:scale-95`} aria-label="Clear block">Clear</button>
+      </div>
+      <div className="absolute left-0 right-0 bottom-0 h-1 bg-transparent">
+        <div className={`h-full ${dark ? 'bg-blue-600/70' : 'bg-blue-600'}`} style={{ width: `${pct}%`, transition: 'width 200ms ease' }} />
       </div>
     </div>
   )
@@ -153,6 +158,49 @@ function stripHtml(html) {
   const tmp = document.createElement('div')
   tmp.innerHTML = html || ''
   return tmp.textContent || tmp.innerText || ''
+}
+
+const FocusModal = ({ open, onClose, onSave, initialValue, capacity, dark, styles }) => {
+  const [val, setVal] = useState(initialValue || '')
+  useEffect(() => setVal(initialValue || ''), [initialValue, open])
+
+  const modules = useMemo(() => ({
+    toolbar: [
+      ['bold', 'italic', 'underline'],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+      [{ 'align': [] }],
+      ['clean']
+    ],
+  }), [])
+
+  const remaining = Math.max(0, capacity - stripHtml(val).length)
+
+  return (
+    <div className={`${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} fixed inset-0 z-40 transition`}> 
+      <div className={`absolute inset-0 ${dark ? 'bg-black/60' : 'bg-black/40'}`} onClick={onClose} />
+      <div className={`absolute inset-x-3 top-[10vh] rounded-2xl shadow-xl border ${dark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
+        <div className={`flex items-center justify-between px-3 py-2 border-b ${dark ? 'border-zinc-800' : 'border-zinc-200'}`}>
+          <span className="text-sm font-medium">Focus editor</span>
+          <div className="flex items-center gap-2">
+            <span className={`text-[11px] px-2 py-0.5 rounded ${dark ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`}>{remaining} left</span>
+            <button onClick={() => onSave(val)} className="px-3 py-1.5 rounded-md text-sm bg-blue-600 text-white active:scale-95">Save</button>
+            <button onClick={onClose} className={`px-3 py-1.5 rounded-md text-sm ${dark ? 'bg-zinc-800 text-zinc-100' : 'bg-zinc-100 text-zinc-900'} active:scale-95`}>Close</button>
+          </div>
+        </div>
+        <div className="p-3">
+          <div className={`rounded-md overflow-hidden border ${dark ? 'border-zinc-800' : 'border-zinc-200'}`} style={{ height: '60vh', ...styles }}>
+            <ReactQuill value={val} onChange={(html) => {
+              if (stripHtml(html).length > capacity) return
+              setVal(html)
+            }} modules={modules} theme="snow" style={{ height: '100%' }} />
+          </div>
+          <div className="h-1 mt-2 bg-transparent">
+            <div className={`${dark ? 'bg-blue-600/70' : 'bg-blue-600'} h-full`} style={{ width: `${Math.min(100, (stripHtml(val).length / capacity) * 100)}%`, transition: 'width 200ms ease' }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function App() {
@@ -165,6 +213,11 @@ export default function App() {
     const fromSession = sessionStorage.getItem('contents')
     return fromSession ? JSON.parse(fromSession) : {}
   })
+  const [showGuides, setShowGuides] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+
+  const [focusOpen, setFocusOpen] = useState(false)
+  const [focusMeta, setFocusMeta] = useState({ id: null, capacity: 0, value: '' })
 
   const a4Ref = useRef(null)
 
@@ -172,10 +225,16 @@ export default function App() {
 
   useEffect(() => {
     sessionStorage.setItem('settings', JSON.stringify(settings))
+    setSavedFlash(true)
+    const t = setTimeout(() => setSavedFlash(false), 800)
+    return () => clearTimeout(t)
   }, [settings])
 
   useEffect(() => {
     sessionStorage.setItem('contents', JSON.stringify(contents))
+    setSavedFlash(true)
+    const t = setTimeout(() => setSavedFlash(false), 800)
+    return () => clearTimeout(t)
   }, [contents])
 
   const applySettings = (next) => setSettings(next)
@@ -231,6 +290,12 @@ export default function App() {
     pdf.save('a4-text-blocks.pdf')
   }
 
+  const onExpand = (id, value, capacity) => {
+    setFocusMeta({ id, value, capacity })
+    setFocusOpen(true)
+  }
+  const onClear = (id) => setContents(prev => ({ ...prev, [id]: '' }))
+
   const renderColumn = (colBlocks, colIdx) => {
     return (
       <div key={colIdx} className={`flex flex-col gap-2 p-3 relative`} style={{ width: '25%' }}>
@@ -246,11 +311,21 @@ export default function App() {
             capacity={b.capacity}
             styles={{ height: b.height, ...computeStyles() }}
             dark={dark}
+            onExpand={onExpand}
+            onClear={onClear}
           />
         ))}
       </div>
     )
   }
+
+  // Guides styles
+  const linePx = settings.fontSize * settings.lineHeight
+  const guidesBg = showGuides
+    ? {
+        backgroundImage: `repeating-linear-gradient(to bottom, ${dark ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.15)'} 0, ${dark ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.15)'} 1px, transparent 1px, transparent ${linePx}px)`
+      }
+    : {}
 
   return (
     <div className={`${dark ? 'bg-black text-white' : 'bg-zinc-50 text-zinc-900'} min-h-[100dvh] pb-40`}>
@@ -261,10 +336,18 @@ export default function App() {
             <span className={`text-[11px] px-2 py-0.5 rounded ${dark ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`}>4 columns</span>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowGuides(v => !v)} className={`px-2.5 py-1.5 rounded-md text-xs border ${showGuides ? 'bg-blue-600 text-white border-blue-600' : (dark ? 'border-zinc-700' : 'border-zinc-200')} active:scale-95`} aria-label="Toggle guides">{showGuides ? 'Guides On' : 'Guides'}</button>
             <button onClick={() => setDark(!dark)} className={`px-2.5 py-1.5 rounded-md text-xs border ${dark ? 'border-zinc-700' : 'border-zinc-200'} active:scale-95`} aria-label="Toggle dark mode">{dark ? 'Light' : 'Dark'}</button>
             <button onClick={handleDownload} className="px-2.5 py-1.5 rounded-md text-xs bg-emerald-600 text-white active:scale-95" aria-label="Export PDF">PDF</button>
           </div>
         </div>
+        {savedFlash && (
+          <div className="max-w-md mx-auto px-4 pb-2">
+            <div className={`inline-flex items-center gap-2 text-[11px] px-2 py-1 rounded ${dark ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`}>
+              <span>Saved</span>
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="max-w-md mx-auto px-3 pt-4 pb-24 space-y-4">
@@ -279,14 +362,18 @@ export default function App() {
                      aspectRatio: '210 / 297',
                      display: 'flex',
                      flexDirection: 'row',
-                     background: dark ? 'linear-gradient(transparent, transparent)' : '#fff'
+                     background: '#ffffff',
                    }}>
+                {/* Guides overlay */}
+                {showGuides && (
+                  <div className="absolute inset-0 pointer-events-none" style={guidesBg} />
+                )}
                 {layout.map((colBlocks, idx) => renderColumn(colBlocks, idx))}
               </div>
             </div>
             <div className="mt-3 text-[11px] leading-relaxed">
               <p className={`mb-1 ${dark ? 'text-zinc-300' : 'text-zinc-600'}`}>• Content autosaves for this tab. Capacity is enforced by plain-text length.</p>
-              <p className={`${dark ? 'text-zinc-400' : 'text-zinc-500'}`}>• Tip: Use lists and alignment from the mini toolbar inside each block. Export to PDF from the header or the bottom bar.</p>
+              <p className={`${dark ? 'text-zinc-400' : 'text-zinc-500'}`}>• Tip: Tap Expand for full-screen editing. Toggle Guides to align lines and spacing. Export to PDF from the header or the bottom bar.</p>
             </div>
           </div>
         </section>
@@ -300,6 +387,20 @@ export default function App() {
         onDownload={handleDownload}
         dark={dark}
         setDark={setDark}
+      />
+
+      <FocusModal
+        open={focusOpen}
+        onClose={() => setFocusOpen(false)}
+        onSave={(val) => {
+          if (!focusMeta.id) return
+          setContents(prev => ({ ...prev, [focusMeta.id]: val }))
+          setFocusOpen(false)
+        }}
+        initialValue={focusMeta.value}
+        capacity={focusMeta.capacity}
+        dark={dark}
+        styles={computeStyles()}
       />
     </div>
   )
