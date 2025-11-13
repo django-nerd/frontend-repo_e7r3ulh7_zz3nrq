@@ -10,48 +10,76 @@ const DEFAULTS = {
   lineHeight: 1,
 }
 
+const PresetChip = ({ label, onClick, active, dark }) => (
+  <button
+    onClick={onClick}
+    className={`px-3 py-2 rounded-full text-xs font-medium border transition ${active ? (dark ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-zinc-900 border-zinc-900 text-white') : (dark ? 'border-zinc-700 text-zinc-200' : 'border-zinc-200 text-zinc-700')} active:scale-95`}
+    aria-label={`Preset ${label}`}
+  >
+    {label}
+  </button>
+)
+
+const Slider = ({ label, min, max, step = 1, value, onChange, suffix = '', dark }) => (
+  <div className="space-y-1">
+    <div className="flex items-center justify-between text-xs">
+      <span>{label}</span>
+      <span className={`px-2 py-0.5 rounded ${dark ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`}>{value}{suffix}</span>
+    </div>
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={e => onChange(Number(e.target.value))}
+      className="w-full accent-blue-600"
+      aria-label={label}
+    />
+  </div>
+)
+
 const Toolbar = ({ settings, setSettings, onApply, onReset, onDownload, dark, setDark }) => {
   const [temp, setTemp] = useState(settings)
   useEffect(() => setTemp(settings), [settings])
 
   return (
     <div
-      className={`fixed bottom-0 left-0 right-0 z-20 ${dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-900'} border-t ${dark ? 'border-zinc-800' : 'border-zinc-200'} p-3`}
+      className={`fixed bottom-0 left-0 right-0 z-20 ${dark ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-zinc-900'} border-t ${dark ? 'border-zinc-800' : 'border-zinc-200'} p-3`}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="mx-auto max-w-md grid grid-cols-2 gap-3">
         <div className="col-span-2 flex items-center justify-between">
           <span className="font-semibold">Controls</span>
-          <button onClick={() => setDark(!dark)} className="px-3 py-2 rounded-md text-sm border border-current/20">{dark ? 'Light' : 'Dark'}</button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setDark(!dark)} className={`px-3 py-2 rounded-md text-sm border ${dark ? 'border-zinc-700' : 'border-zinc-200'} active:scale-95`} aria-label="Toggle dark mode">{dark ? 'Light' : 'Dark'}</button>
+            <button onClick={onDownload} className="px-3 py-2 rounded-md text-sm bg-emerald-600 text-white active:scale-95" aria-label="Export PDF">PDF</button>
+          </div>
         </div>
 
-        <label className="text-xs">Total Blocks
+        <div className="col-span-2 grid grid-cols-3 gap-2">
+          <PresetChip label="4 blocks" onClick={() => setTemp({ ...temp, blocks: 4 })} active={temp.blocks === 4} dark={dark} />
+          <PresetChip label="8 blocks" onClick={() => setTemp({ ...temp, blocks: 8 })} active={temp.blocks === 8} dark={dark} />
+          <PresetChip label="12 blocks" onClick={() => setTemp({ ...temp, blocks: 12 })} active={temp.blocks === 12} dark={dark} />
+        </div>
+
+        <label className="text-xs col-span-2">Total Blocks
           <input type="number" min={1} max={40} value={temp.blocks}
             onChange={e => setTemp({ ...temp, blocks: parseInt(e.target.value || '0') })}
-            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${dark ? 'bg-zinc-900 border-zinc-800' : ''}`} />
         </label>
 
-        <label className="text-xs">Font Size (px)
-          <input type="number" min={4} max={20} value={temp.fontSize}
-            onChange={e => setTemp({ ...temp, fontSize: parseFloat(e.target.value || '0') })}
-            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </label>
-
-        <label className="text-xs">Character Spacing
-          <input type="number" min={-200} max={200} value={temp.charSpacing}
-            onChange={e => setTemp({ ...temp, charSpacing: parseFloat(e.target.value || '0') })}
-            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </label>
-
-        <label className="text-xs">Line Spacing
-          <input type="number" step="0.1" min={0.8} max={3} value={temp.lineHeight}
-            onChange={e => setTemp({ ...temp, lineHeight: parseFloat(e.target.value || '0') })}
-            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </label>
+        <div className="col-span-2 grid grid-cols-2 gap-3">
+          <Slider label="Font Size" min={4} max={14} value={temp.fontSize} onChange={(v) => setTemp({ ...temp, fontSize: v })} suffix="px" dark={dark} />
+          <Slider label="Line Height" min={0.8} max={2.0} step={0.05} value={temp.lineHeight} onChange={(v) => setTemp({ ...temp, lineHeight: v })} dark={dark} />
+          <div className="col-span-2">
+            <Slider label="Character Spacing" min={-200} max={200} step={5} value={temp.charSpacing} onChange={(v) => setTemp({ ...temp, charSpacing: v })} suffix="" dark={dark} />
+          </div>
+        </div>
 
         <div className="col-span-2 grid grid-cols-3 gap-3 pt-1">
           <button onClick={() => { onApply(temp) }} className="rounded-xl py-3 text-sm font-semibold bg-blue-600 text-white active:scale-95">Apply</button>
-          <button onClick={onReset} className="rounded-xl py-3 text-sm font-semibold bg-zinc-200 text-zinc-900 active:scale-95">Reset</button>
+          <button onClick={onReset} className={`${dark ? 'bg-zinc-800 text-zinc-100' : 'bg-zinc-200 text-zinc-900'} rounded-xl py-3 text-sm font-semibold active:scale-95`}>Reset</button>
           <button onClick={onDownload} className="rounded-xl py-3 text-sm font-semibold bg-emerald-600 text-white active:scale-95">PDF</button>
         </div>
       </div>
@@ -97,9 +125,7 @@ const BlockEditor = ({ id, value, onChange, capacity, styles, dark }) => {
   const handleChange = (html) => {
     const plainLen = stripHtml(html).length
     if (plainLen > capacity) {
-      // Block extra input by reverting
-      const delta = quillRef.current?.getEditor().getContents()
-      // No hard trim to avoid breaking tags; just ignore new input
+      // Ignore extra input beyond capacity without breaking formatting
       return
     }
     setRemaining(capacity - plainLen)
@@ -107,7 +133,7 @@ const BlockEditor = ({ id, value, onChange, capacity, styles, dark }) => {
   }
 
   return (
-    <div className={`relative rounded-lg overflow-hidden ${dark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`} style={{ ...styles }}>
+    <div className={`relative rounded-md overflow-hidden border ${dark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`} style={{ ...styles }}>
       <ReactQuill
         ref={quillRef}
         value={value}
@@ -116,8 +142,8 @@ const BlockEditor = ({ id, value, onChange, capacity, styles, dark }) => {
         theme="snow"
         style={{ height: '100%' }}
       />
-      <div className={`absolute right-2 bottom-2 text-xs px-2 py-1 rounded-md ${dark ? 'bg-zinc-800 text-zinc-200' : 'bg-white/80 text-zinc-700'} border ${dark ? 'border-zinc-700' : 'border-zinc-200'}`}>
-        {remaining} chars left
+      <div className={`absolute right-2 bottom-2 text-[10px] px-2 py-1 rounded-md ${dark ? 'bg-zinc-800 text-zinc-200' : 'bg-white/90 text-zinc-700'} border ${dark ? 'border-zinc-700' : 'border-zinc-200'}`}>
+        {remaining} left
       </div>
     </div>
   )
@@ -192,13 +218,12 @@ export default function App() {
     const node = a4Ref.current
     if (!node) return
 
-    const canvas = await html2canvas(node, { scale: 2 })
+    const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff' })
     const imgData = canvas.toDataURL('image/png')
 
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const pageWidth = 210
     const pageHeight = 297
-    // compute image dimensions to fit page while maintaining A4 aspect
     const imgWidth = pageWidth
     const imgHeight = canvas.height * imgWidth / canvas.width
     const y = (pageHeight - imgHeight) / 2
@@ -208,7 +233,10 @@ export default function App() {
 
   const renderColumn = (colBlocks, colIdx) => {
     return (
-      <div key={colIdx} className="flex flex-col gap-2 p-3" style={{ width: '25%' }}>
+      <div key={colIdx} className={`flex flex-col gap-2 p-3 relative`} style={{ width: '25%' }}>
+        {colIdx !== 3 && (
+          <div className={`absolute top-2 bottom-2 right-0 w-px ${dark ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
+        )}
         {colBlocks.map((b) => (
           <BlockEditor
             key={b.id}
@@ -226,31 +254,40 @@ export default function App() {
 
   return (
     <div className={`${dark ? 'bg-black text-white' : 'bg-zinc-50 text-zinc-900'} min-h-[100dvh] pb-40`}>
-      <header className="sticky top-0 z-10 backdrop-blur bg-white/70 border-b">
+      <header className={`sticky top-0 z-10 backdrop-blur ${dark ? 'bg-black/60 border-zinc-800' : 'bg-white/70 border-zinc-200'} border-b`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-base font-semibold">A4 Sheet Text Block Editor</h1>
-          <span className="text-xs opacity-70">Mobile</span>
+          <div className="flex items-center gap-3">
+            <h1 className="text-base font-semibold">A4 Sheet Editor</h1>
+            <span className={`text-[11px] px-2 py-0.5 rounded ${dark ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700'}`}>4 columns</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setDark(!dark)} className={`px-2.5 py-1.5 rounded-md text-xs border ${dark ? 'border-zinc-700' : 'border-zinc-200'} active:scale-95`} aria-label="Toggle dark mode">{dark ? 'Light' : 'Dark'}</button>
+            <button onClick={handleDownload} className="px-2.5 py-1.5 rounded-md text-xs bg-emerald-600 text-white active:scale-95" aria-label="Export PDF">PDF</button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-md mx-auto px-3 pt-4 pb-24 space-y-4">
-        <section className="rounded-2xl shadow-sm border bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b bg-zinc-50 text-sm font-medium">Preview</div>
+        <section className={`rounded-2xl shadow-sm border overflow-hidden ${dark ? 'bg-zinc-950 border-zinc-800' : 'bg-white'}`}>
+          <div className={`px-4 py-3 border-b text-sm font-medium ${dark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-50 border-zinc-100'}`}>Preview</div>
           <div className="p-3">
             <div className="w-full flex justify-center">
-              <div ref={a4Ref} className="relative bg-white shadow-md border rounded-xl overflow-hidden"
+              <div ref={a4Ref} className="relative shadow-md border rounded-xl overflow-hidden"
                    style={{
                      width: '100%',
-                     maxWidth: 320, // mobile card width
-                     aspectRatio: '210 / 297', // maintain A4 ratio
+                     maxWidth: 320,
+                     aspectRatio: '210 / 297',
                      display: 'flex',
                      flexDirection: 'row',
+                     background: dark ? 'linear-gradient(transparent, transparent)' : '#fff'
                    }}>
-                {/* 4 columns */}
                 {layout.map((colBlocks, idx) => renderColumn(colBlocks, idx))}
               </div>
             </div>
-            <p className="text-xs text-zinc-500 mt-2">4 columns. Content autosaves in this tab only.</p>
+            <div className="mt-3 text-[11px] leading-relaxed">
+              <p className={`mb-1 ${dark ? 'text-zinc-300' : 'text-zinc-600'}`}>• Content autosaves for this tab. Capacity is enforced by plain-text length.</p>
+              <p className={`${dark ? 'text-zinc-400' : 'text-zinc-500'}`}>• Tip: Use lists and alignment from the mini toolbar inside each block. Export to PDF from the header or the bottom bar.</p>
+            </div>
           </div>
         </section>
       </main>
